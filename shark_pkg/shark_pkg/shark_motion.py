@@ -53,13 +53,17 @@ class SharkMotion(Node):
                 and msg.confidence >= self.CONF_THRESH
                 and msg.bbox_height > self.TRIGGER_HEIGHT):
             self.get_logger().info("Person detected")
+            # every person has a 30% chance of being jawsed
 
         
-                   
-        else:
-            self.get_logger().info("No person detected -- keep moving.")
-            twist.linear.x = self.FORWARD_SPD # keep moving at normal speed
+        #if jawsed:
+        #   follow person and increase music speed as you get closer
+        #else:
+        #   random walk
+        
 
+        
+        # this will be somewhere 
         if self.ANG > self.ANG_THRESH:
             twist.angular.z = -0.15
             self.get_logger().info("Turning right to correct orientation.")
@@ -128,25 +132,7 @@ class SharkMotion(Node):
             light_msg.data = self.FORWARD_LIGHTS
         self.light_pub.publish(light_msg)
 
-    # ================================================================================
-    # SOUNDS
-    # ================================================================================
-    def change_sounds(self):
-        audio_msg = AudioNoteVector()
-        Melody = [1174, 1318, 1568]
-        Durations = [.2, .2, .4]
-        for x in range(len(Melody)):
-            note = AudioNote()           
-            time_play = Duration()
 
-            time_play.nanosec = int(Durations[x] * 1000000000) # val * 1 second
-            note.max_runtime = time_play
-            note.frequency = Melody[x]
-
-            audio_msg.append = True
-            audio_msg.notes.append(note)
-
-        self.sound_pub.publish(audio_msg)
 
 def main(args=None):
     rclpy.init(args=args)
