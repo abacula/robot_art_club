@@ -9,6 +9,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
+import random
 
 
 class SharkMotion(Node):
@@ -17,20 +18,23 @@ class SharkMotion(Node):
 
         robot_namespace = '/robot2'
 
-        self.SOUND = True                          # do we want sounds
+        self.SOUND = False                          # do we want sounds
         self.JAWS_MODE = False                     # are we jaws
 
 
-        self.LIGHTS = True                         # do we want lights
+        self.LIGHTS = False                         # do we want lights
         self.BASE_LIGHTS = 'base'
         self.JAWS_LIGHTS = 'jaws'
 
         self.FORWARD_SPD = 0.5                             # m/s
+        self.TURN_SPEED = 0.25
         self.CANDY_PAUSE = False
 
         self.CONF_THRESH = 0.0                             # min confidence
         self.TRIGGER_HEIGHT = 30                           # bbox_height that starts the slowdown
         self.PERSON_DETECTED = False
+        self.person_x = 0.0
+        self.person_height = 0.0
         
         self.PI = 3.14159265358979323846
         self.ANG = 0
@@ -42,7 +46,7 @@ class SharkMotion(Node):
 
         self.RATE = 0.2                             # in seconds
         self. PAUSE_TIME = 5                        # in seconds
-        self.PAUSE_ITERS = self.PUASE_TIME / self.RATE
+        self.PAUSE_ITERS = self.PAUSE_TIME / self.RATE
         self.iter = 0
 
         self.vel_pub = self.create_publisher(Twist, robot_namespace + '/cmd_vel_unstamped', 10)
@@ -64,17 +68,21 @@ class SharkMotion(Node):
                 and msg.confidence >= self.CONF_THRESH
                 and msg.bbox_height > self.TRIGGER_HEIGHT):
             self.PERSON_DETECTED = True
+            self.person_x = msg.position.x
+            self.person_height = msg.bbox_height
             self.get_logger().info("Person detected")
             # every person has a 30% chance of being jawsed
-            jaws_test = random.randint(0, 2)
-            if (jaws_test == 2):
-                self.JAWS_MODE = True
+            # jaws_test = random.randint(0, 2)
+            # if (jaws_test == 2):
+            self.JAWS_MODE = True
         else: 
             self.PERSON_DETECTED = False
         
 
     def time_cb(self):
         twist = Twist()
+        turn_left = False
+        turn_right = False
 
         if self.CANDY_PAUSE:
             if self.iter < self.PAUSE_ITERS:
@@ -85,12 +93,31 @@ class SharkMotion(Node):
 
 
         if self.JAWS_MODE:
-            pass
+            is_straight = self.person_x - 125
+            self.get_logger().info("Person detected ahead at " + str(self.person_x))
+
+            if abs(is_straight) < 15:
+                d_ang = self.ANG
+                turn_left = False
+                turn_right = False
+    
+            elif is_straight < 0:
+                #turn left
+                d_ang = self.ANG
+                turn_left = True 
+                turn_right = False
+            else:
+                #turn right
+                d_ang = self.ANG - 0.5
+                turn_left = False
+                turn_right = True
+                
         else:
             #go forward at set speed and sometimes rotate
             random_walk = random.randint(0, 5)
             if (random_walk == 0): 
                 random_turn = self.PI * random.randint(-40,40) / 180
+                self.get_logger().info("Doing random turn.")
 
                 d_ang = self.ANG + random_turn
             else: 
@@ -98,11 +125,11 @@ class SharkMotion(Node):
 
         
         # orient to correct angle 
-        if self.ANG > d_ang:
-            twist.angular.z = -0.15
+        if ((self.ANG > d_ang) or turn_right):
+            twist.angular.z = -self.TURN_SPEED
             self.get_logger().info("Turning right to correct orientation.")
-        elif self.ANG < -d_ang:
-            twist.angular.z = 0.15
+        elif ((self.ANG < -d_ang) or turn_left):
+            twist.angular.z = self.TURN_SPEED
             self.get_logger().info("Turning left to correct orientation.")
         else:
             twist.angular.z = 0.0
@@ -119,7 +146,7 @@ class SharkMotion(Node):
                 self.CANDY_PAUSE = True
             else: 
                 # Turn to move away from obstacle
-                twist.angular.z = 0.15
+                twist.angular.z = self.TURN_SPEED
         elif self.GOT_OFFSET is False:
             twist.linear.x = 0.0
             twist.angular.z = 0.0
@@ -188,7 +215,7 @@ class SharkMotion(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = SlowdownMovementMLS()
+    node = SharkMotion()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
