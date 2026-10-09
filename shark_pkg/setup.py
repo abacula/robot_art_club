@@ -25,7 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'shark_sound_node = shark_pkg.shark_sound:main',
-            'shark_motion_node = shark_pkg.shark_motion:main',
+            'shark_node = shark_pkg.shark_motion:main',
         ],
     },
 )
